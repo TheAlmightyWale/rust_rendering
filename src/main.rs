@@ -1,5 +1,6 @@
 mod buffer_primitives;
 mod state;
+mod texture;
 mod window_target;
 
 use winit::{
