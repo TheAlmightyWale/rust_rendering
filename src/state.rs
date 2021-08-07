@@ -1,8 +1,19 @@
 use crate::buffer_primitives::Vertex;
 use crate::texture;
+use std::convert::TryInto;
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
+
+static COLOR_BYTE_SIZE: usize = 4; //Color is comprised of 4 bytes, rgba all in u8 form
+
+//TODO move to objects file
+#[derive(Debug)]
+pub struct Sphere {
+    pub center: cgmath::Vector3<f32>,
+    pub radius: f32,
+    pub color: [u8; 4],
+}
 
 pub struct State {
     surface: wgpu::Surface,
@@ -17,6 +28,9 @@ pub struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
+    pub pixels: Vec<u8>,
+    pub texture: texture::Texture,
+    pub spheres: Vec<Sphere>,
 }
 
 impl State {
@@ -56,11 +70,18 @@ impl State {
         };
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
+        //Need to replace this texture loading with a blank texture, which is exposed to be filled by others
         let diffuse_bytes = include_bytes!("happy-tree.png");
-        let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-        let diffuse_texture =
+        let texture =
             texture::Texture::from_bytes(&device, &queue, diffuse_bytes, Some("happy-tree.png"))
                 .unwrap();
+
+        let pixels = vec![
+            0;
+            (texture.size.width * texture.size.height * COLOR_BYTE_SIZE as u32) // 4 color channels
+                .try_into()
+                .unwrap()
+        ];
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -96,11 +117,11 @@ impl State {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
@@ -185,6 +206,37 @@ impl State {
 
         let num_indices = INDICES.len() as u32;
 
+        //Scene description, this doesn't belong here either!
+        let spheres = vec![
+            Sphere {
+                center: cgmath::Vector3::<f32> {
+                    x: 0.0,
+                    y: -1.0,
+                    z: 3.0,
+                },
+                radius: 1.0,
+                color: [255, 0, 0, 255],
+            },
+            Sphere {
+                center: cgmath::Vector3::<f32> {
+                    x: 2.0,
+                    y: 0.0,
+                    z: 4.0,
+                },
+                radius: 1.0,
+                color: [0, 0, 255, 255],
+            },
+            Sphere {
+                center: cgmath::Vector3::<f32> {
+                    x: -2.0,
+                    y: 0.0,
+                    z: 4.0,
+                },
+                radius: 1.0,
+                color: [111, 0, 111, 255],
+            },
+        ];
+
         Self {
             surface,
             device,
@@ -197,6 +249,9 @@ impl State {
             index_buffer,
             num_indices,
             diffuse_bind_group,
+            pixels,
+            texture,
+            spheres,
         }
     }
 
@@ -214,7 +269,19 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        todo!()
+        //Copy pixels to texture
+        self.texture.fill_texture(&self.pixels, &self.queue);
+    }
+
+    pub fn set_pixel(&mut self, x: u32, y: u32, color: &[u8]) {
+        let row_size = self.texture.size.width * COLOR_BYTE_SIZE as u32;
+        let index: usize = (x * COLOR_BYTE_SIZE as u32 + y * row_size)
+            .try_into()
+            .unwrap();
+        let color_slice = self.pixels.get_mut(index..index + COLOR_BYTE_SIZE);
+        color_slice
+            .unwrap()
+            .copy_from_slice(&color[0..COLOR_BYTE_SIZE]);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SwapChainError> {

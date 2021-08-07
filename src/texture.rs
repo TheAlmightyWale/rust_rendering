@@ -5,6 +5,8 @@ pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub size: wgpu::Extent3d,
+    image_data_layout: wgpu::ImageDataLayout,
 }
 
 impl Texture {
@@ -46,6 +48,12 @@ impl Texture {
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
         });
 
+        let image_data_layout = wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
+            rows_per_image: std::num::NonZeroU32::new(dimensions.1),
+        };
+
         queue.write_texture(
             //destination
             wgpu::ImageCopyTexture {
@@ -56,11 +64,7 @@ impl Texture {
             //data
             rgba,
             //Layout
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
-                rows_per_image: std::num::NonZeroU32::new(dimensions.1),
-            },
+            image_data_layout,
             size,
         );
 
@@ -79,6 +83,21 @@ impl Texture {
             texture,
             view,
             sampler,
+            size,
+            image_data_layout,
         })
+    }
+
+    pub fn fill_texture(&mut self, pixels: &[u8], queue: &wgpu::Queue) {
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            pixels,
+            self.image_data_layout,
+            self.size,
+        )
     }
 }
