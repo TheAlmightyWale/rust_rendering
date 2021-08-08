@@ -1,4 +1,8 @@
 mod buffer_primitives;
+mod lights;
+mod objects;
+mod scene;
+mod serialization_defs;
 mod state;
 mod texture;
 mod window_target;
@@ -9,10 +13,12 @@ use winit::{
     window::WindowBuilder,
 };
 
-use state::Sphere;
+use futures::executor::block_on;
+use objects::Sphere;
+use scene::Scene;
 use state::State;
 
-use futures::executor::block_on;
+use std::fs;
 
 static MIN_Z: f32 = 1.0;
 
@@ -27,11 +33,16 @@ fn run() -> windows::Result<()> {
     let mut state = block_on(State::new(&window));
     //finish game state intialize
 
+    let scene_filename = "scene.json";
+    let scene_json = fs::read_to_string(scene_filename)
+        .expect(&format!("Could not read file {}", scene_filename)); //Expensive string creation, but only used once, so probably alright
+    let scene = Scene::load(&scene_json).unwrap();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                ray_trace(&mut state); // trace once for debugging
+                ray_trace(&mut state, &scene); // trace once for debugging
                 state.update();
                 match state.render() {
                     Ok(_) => {}
@@ -86,7 +97,7 @@ fn run() -> windows::Result<()> {
     });
 }
 
-fn ray_trace(state: &mut State) {
+fn ray_trace(state: &mut State, scene: &Scene) {
     //Get bounds of drawing sruface
     let viewport_width = state.texture.size.width as f32;
     let viewport_height = state.texture.size.height as f32;
@@ -102,7 +113,7 @@ fn ray_trace(state: &mut State) {
             let centered_x = x as f32 - (viewport_width / 2.0);
             let centered_y = y as f32 - (viewport_height / 2.0);
             let direction = canvas_to_viewport(centered_x, centered_y, size);
-            let color = trace_ray(&origin, &direction, 1.0, f32::INFINITY, state);
+            let color = trace_ray(&origin, &direction, 1.0, f32::INFINITY, scene);
             state.set_pixel(x, y, &color);
         }
     }
@@ -122,12 +133,12 @@ fn trace_ray(
     direction: &cgmath::Vector3<f32>,
     min_distance: f32,
     max_distance: f32,
-    world: &State,
+    scene: &Scene,
 ) -> [u8; 4] {
     let mut closest_t = f32::INFINITY;
     let mut closest_sphere: Option<&Sphere> = None;
 
-    for sphere in world.spheres.iter() {
+    for sphere in scene.objects.iter() {
         let determinants = intersect_ray_sphere(origin, direction, sphere);
         if (min_distance..max_distance).contains(&determinants.0) && determinants.0 < closest_t {
             closest_t = determinants.0;

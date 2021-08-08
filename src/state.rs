@@ -1,4 +1,5 @@
 use crate::buffer_primitives::Vertex;
+use crate::objects::Sphere;
 use crate::texture;
 use std::convert::TryInto;
 use wgpu::util::DeviceExt;
@@ -6,14 +7,6 @@ use winit::event::WindowEvent;
 use winit::window::Window;
 
 static COLOR_BYTE_SIZE: usize = 4; //Color is comprised of 4 bytes, rgba all in u8 form
-
-//TODO move to objects file
-#[derive(Debug)]
-pub struct Sphere {
-    pub center: cgmath::Vector3<f32>,
-    pub radius: f32,
-    pub color: [u8; 4],
-}
 
 pub struct State {
     surface: wgpu::Surface,
