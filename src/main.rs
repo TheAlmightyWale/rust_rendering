@@ -1,6 +1,7 @@
 mod buffer_primitives;
 mod lights;
 mod objects;
+mod properties;
 mod scene;
 mod serialization_defs;
 mod state;
@@ -13,14 +14,23 @@ use winit::{
     window::WindowBuilder,
 };
 
+use cgmath::InnerSpace; //Dot product and magnitude
 use futures::executor::block_on;
+use lights::Light;
 use objects::Sphere;
+use properties::Color;
 use scene::Scene;
 use state::State;
 
 use std::fs;
 
 static MIN_Z: f32 = 1.0;
+static BG_COLOR: Color<u8> = Color::<u8> {
+    r: 10,
+    g: 100,
+    b: 10,
+    a: 255,
+};
 
 fn run() -> windows::Result<()> {
     windows::initialize_sta()?; //Single thread application
@@ -134,7 +144,7 @@ fn trace_ray(
     min_distance: f32,
     max_distance: f32,
     scene: &Scene,
-) -> [u8; 4] {
+) -> Color<u8> {
     let mut closest_t = f32::INFINITY;
     let mut closest_sphere: Option<&Sphere> = None;
 
@@ -152,8 +162,12 @@ fn trace_ray(
     }
 
     match closest_sphere {
-        Some(sphere) => sphere.color,
-        None => [0, 0, 0, 255],
+        Some(sphere) => {
+            let intersection = origin + closest_t * direction;
+            let normal = (intersection - sphere.center).normalize();
+            sphere.color * compute_lighting(scene, &intersection, &normal)
+        }
+        None => BG_COLOR,
     }
 }
 
@@ -179,6 +193,81 @@ fn intersect_ray_sphere(
             let t2 = (-b - discriminant.sqrt()) / (2.0 * a);
             (t1, t2)
         }
+    }
+}
+
+fn get_sphere_normal(
+    intersection_point: &cgmath::Vector3<f32>,
+    sphere: &Sphere,
+) -> cgmath::Vector3<f32> {
+    let normal_direction = intersection_point - sphere.center;
+    normal_direction.normalize()
+}
+
+fn compute_lighting(
+    scene: &Scene,
+    intersection_point: &cgmath::Vector3<f32>,
+    surface_normal: &cgmath::Vector3<f32>,
+) -> Color<f32> {
+    let mut total_intensity = Color::<f32> {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
+
+    for light in scene.lights.iter() {
+        total_intensity =
+            total_intensity + calculate_light_intensity(light, intersection_point, surface_normal);
+    }
+
+    total_intensity
+}
+
+fn calculate_light_intensity(
+    light: &Light,
+    intersection_point: &cgmath::Vector3<f32>,
+    surface_normal: &cgmath::Vector3<f32>,
+) -> Color<f32> {
+    match light {
+        Light::Directional {
+            direction,
+            intensity,
+        } => {
+            let dot_normal_direction = cgmath::dot(*surface_normal, *direction);
+            if dot_normal_direction > 0.0 {
+                let scale =
+                    dot_normal_direction / (surface_normal.magnitude() * direction.magnitude());
+                *intensity * scale //return
+            } else {
+                Color::<f32> {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.0,
+                }
+            }
+        }
+        Light::Point {
+            position,
+            intensity,
+        } => {
+            let direction = position - intersection_point;
+            let dot_normal_direction = cgmath::dot(*surface_normal, direction);
+            if dot_normal_direction > 0.0 {
+                let scale =
+                    dot_normal_direction / (surface_normal.magnitude() * direction.magnitude());
+                *intensity * scale //return
+            } else {
+                Color::<f32> {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.0,
+                }
+            }
+        }
+        Light::Ambient { intensity } => *intensity,
     }
 }
 

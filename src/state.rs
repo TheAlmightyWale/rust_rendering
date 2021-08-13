@@ -1,5 +1,6 @@
 use crate::buffer_primitives::Vertex;
-use crate::objects::Sphere;
+use crate::properties::Color;
+use crate::properties::ColorBytes;
 use crate::texture;
 use std::convert::TryInto;
 use wgpu::util::DeviceExt;
@@ -23,7 +24,6 @@ pub struct State {
     diffuse_bind_group: wgpu::BindGroup,
     pub pixels: Vec<u8>,
     pub texture: texture::Texture,
-    pub spheres: Vec<Sphere>,
 }
 
 impl State {
@@ -199,37 +199,6 @@ impl State {
 
         let num_indices = INDICES.len() as u32;
 
-        //Scene description, this doesn't belong here either!
-        let spheres = vec![
-            Sphere {
-                center: cgmath::Vector3::<f32> {
-                    x: 0.0,
-                    y: -1.0,
-                    z: 3.0,
-                },
-                radius: 1.0,
-                color: [255, 0, 0, 255],
-            },
-            Sphere {
-                center: cgmath::Vector3::<f32> {
-                    x: 2.0,
-                    y: 0.0,
-                    z: 4.0,
-                },
-                radius: 1.0,
-                color: [0, 0, 255, 255],
-            },
-            Sphere {
-                center: cgmath::Vector3::<f32> {
-                    x: -2.0,
-                    y: 0.0,
-                    z: 4.0,
-                },
-                radius: 1.0,
-                color: [111, 0, 111, 255],
-            },
-        ];
-
         Self {
             surface,
             device,
@@ -244,7 +213,6 @@ impl State {
             diffuse_bind_group,
             pixels,
             texture,
-            spheres,
         }
     }
 
@@ -266,7 +234,8 @@ impl State {
         self.texture.fill_texture(&self.pixels, &self.queue);
     }
 
-    pub fn set_pixel(&mut self, x: u32, y: u32, color: &[u8]) {
+    pub fn set_pixel(&mut self, x: u32, y: u32, color: &Color<u8>) {
+        let color_bytes: ColorBytes = color.get_bytes().unwrap();
         let row_size = self.texture.size.width * COLOR_BYTE_SIZE as u32;
         let index: usize = (x * COLOR_BYTE_SIZE as u32 + y * row_size)
             .try_into()
@@ -274,7 +243,8 @@ impl State {
         let color_slice = self.pixels.get_mut(index..index + COLOR_BYTE_SIZE);
         color_slice
             .unwrap()
-            .copy_from_slice(&color[0..COLOR_BYTE_SIZE]);
+            .copy_from_slice(&bytemuck::bytes_of(&color_bytes)[0..COLOR_BYTE_SIZE]);
+        // turn Color struct into byte array and copy over
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
