@@ -108,3 +108,9 @@ impl Mul<Color<f32>> for Color<u8> {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+pub enum Material {
+    Matte { color: Color<u8> },
+    Specular { color: Color<u8>, specular: f32 },
+}
