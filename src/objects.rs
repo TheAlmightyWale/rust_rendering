@@ -15,7 +15,7 @@ impl Sphere {
     pub fn get_color(self) -> Color<u8> {
         match self.material {
             Material::Matte { color } => color,
-            Material::Specular { color, specular: _ } => color,
+            Material::Specular { color, .. } => color,
         }
     }
 }

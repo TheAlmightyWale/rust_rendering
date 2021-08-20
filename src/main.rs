@@ -2,6 +2,7 @@ mod buffer_primitives;
 mod lights;
 mod objects;
 mod properties;
+mod ray_tracer;
 mod scene;
 mod serialization_defs;
 mod state;
@@ -14,24 +15,12 @@ use winit::{
     window::WindowBuilder,
 };
 
-use cgmath::InnerSpace; //Dot product and magnitude
 use futures::executor::block_on;
-use lights::Light;
-use objects::Sphere;
-use properties::Color;
-use properties::Material;
+use ray_tracer::ray_trace;
 use scene::Scene;
 use state::State;
 
 use std::fs;
-
-static MIN_Z: f32 = 1.0;
-static BG_COLOR: Color<u8> = Color::<u8> {
-    r: 10,
-    g: 100,
-    b: 10,
-    a: 255,
-};
 
 fn run() -> windows::Result<()> {
     windows::initialize_sta()?; //Single thread application
@@ -53,7 +42,7 @@ fn run() -> windows::Result<()> {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                ray_trace(&mut state, &scene); // trace once for debugging
+                ray_trace(&scene, &mut state);
                 state.update();
                 match state.render() {
                     Ok(_) => {}
@@ -106,183 +95,6 @@ fn run() -> windows::Result<()> {
             _ => (),
         }
     });
-}
-
-fn ray_trace(state: &mut State, scene: &Scene) {
-    //Get bounds of drawing sruface
-    let viewport_width = state.texture.size.width as f32;
-    let viewport_height = state.texture.size.height as f32;
-    let size = cgmath::Vector2::<f32> {
-        x: viewport_width,
-        y: viewport_height,
-    };
-    let origin = cgmath::Vector3::new(0.0, 0.0, 0.0);
-
-    for y in 0..state.texture.size.width {
-        for x in 0..state.texture.size.height {
-            //Centering x and y gives us a camera view centered at 0,0,0, rather than having the far left of the view starting at 0,0,0
-            let centered_x = x as f32 - (viewport_width / 2.0);
-            let centered_y = y as f32 - (viewport_height / 2.0);
-            let direction = canvas_to_viewport(centered_x, centered_y, size);
-            let color = trace_ray(&origin, &direction, 1.0, f32::INFINITY, scene);
-            state.set_pixel(x, y, &color);
-        }
-    }
-}
-
-fn canvas_to_viewport(x: f32, y: f32, size: cgmath::Vector2<f32>) -> cgmath::Vector3<f32> {
-    cgmath::Vector3::<f32> {
-        x: (x / size.x),
-        y: (y / size.y),
-        z: MIN_Z,
-    }
-}
-
-//min and max distance are measured as the parameter t in the vector equation P = Q + t(V - Q), where V and Q are 2 points
-fn trace_ray(
-    origin: &cgmath::Vector3<f32>,
-    camera_ray_direction: &cgmath::Vector3<f32>,
-    min_distance: f32,
-    max_distance: f32,
-    scene: &Scene,
-) -> Color<u8> {
-    let mut closest_t = f32::INFINITY;
-    let mut closest_sphere: Option<&Sphere> = None;
-
-    for sphere in scene.objects.iter() {
-        let determinants = intersect_ray_sphere(origin, camera_ray_direction, sphere);
-        if (min_distance..max_distance).contains(&determinants.0) && determinants.0 < closest_t {
-            closest_t = determinants.0;
-            closest_sphere = Some(&sphere);
-        }
-
-        if (min_distance..max_distance).contains(&determinants.1) && determinants.1 < closest_t {
-            closest_t = determinants.1;
-            closest_sphere = Some(&sphere);
-        }
-    }
-
-    match closest_sphere {
-        Some(sphere) => {
-            let intersection = origin + closest_t * camera_ray_direction;
-            let normal = (intersection - sphere.center).normalize();
-            sphere.get_color()
-                * compute_lighting(
-                    scene,
-                    &intersection,
-                    &normal,
-                    &sphere.material,
-                    &(camera_ray_direction * -1.0),
-                )
-        }
-        None => BG_COLOR,
-    }
-}
-
-//returns the determinants of the quadratic equation, f32::INFINITY(no intersection), both determinants equal (tangent), two solutions (intersection)
-fn intersect_ray_sphere(
-    origin: &cgmath::Vector3<f32>,
-    camera_ray_direction: &cgmath::Vector3<f32>,
-    sphere: &Sphere,
-) -> (f32, f32) {
-    let r = sphere.radius;
-    let origin_sphere = origin - sphere.center;
-
-    //Quadratic equation
-    let a = cgmath::dot(*camera_ray_direction, *camera_ray_direction);
-    let b = 2.0 * cgmath::dot(origin_sphere, *camera_ray_direction);
-    let c = cgmath::dot(origin_sphere, origin_sphere) - r * r;
-
-    let discriminant = b * b - 4.0 * a * c;
-    match discriminant {
-        d if d < 0.0 => (f32::INFINITY, f32::INFINITY),
-        __ => {
-            let t1 = (-b + discriminant.sqrt()) / (2.0 * a);
-            let t2 = (-b - discriminant.sqrt()) / (2.0 * a);
-            (t1, t2)
-        }
-    }
-}
-
-fn compute_lighting(
-    scene: &Scene,
-    intersection_point: &cgmath::Vector3<f32>,
-    surface_normal: &cgmath::Vector3<f32>,
-    material: &Material,
-    view: &cgmath::Vector3<f32>,
-) -> Color<f32> {
-    let mut total_intensity = Color::<f32> {
-        r: 0.0,
-        g: 0.0,
-        b: 0.0,
-        a: 0.0,
-    };
-
-    for light in scene.lights.iter() {
-        total_intensity = total_intensity
-            + calculate_light_intensity(light, intersection_point, surface_normal, material, view);
-    }
-
-    total_intensity
-}
-
-fn calculate_light_intensity(
-    light: &Light,
-    intersection_point: &cgmath::Vector3<f32>,
-    surface_normal: &cgmath::Vector3<f32>,
-    material: &Material,
-    view: &cgmath::Vector3<f32>,
-) -> Color<f32> {
-    match light {
-        Light::Directional {
-            direction,
-            intensity,
-        } => calculate_directional_light(direction, intensity, surface_normal, material, view),
-        Light::Point {
-            position,
-            intensity,
-        } => {
-            let direction = position - intersection_point;
-            calculate_directional_light(&direction, intensity, surface_normal, material, view)
-        }
-        Light::Ambient { intensity } => *intensity,
-    }
-}
-
-fn calculate_directional_light(
-    direction: &cgmath::Vector3<f32>,
-    intensity: &Color<f32>,
-    surface_normal: &cgmath::Vector3<f32>,
-    material: &Material,
-    view: &cgmath::Vector3<f32>,
-) -> Color<f32> {
-    let mut final_color = Color::<f32> {
-        r: 0.0,
-        g: 0.0,
-        b: 0.0,
-        a: 0.0,
-    };
-
-    //Diffuse
-    let dot_normal_direction = cgmath::dot(*surface_normal, *direction);
-    if dot_normal_direction > 0.0 {
-        let scale = dot_normal_direction / (surface_normal.magnitude() * direction.magnitude());
-        final_color = *intensity * scale;
-    }
-
-    //Specular
-    if let Material::Specular { color: _, specular } = material {
-        let reflection =
-            2.0 * surface_normal * cgmath::dot(*surface_normal, *direction) - direction;
-        let reflection_dot_view = cgmath::dot(reflection, *view);
-        if reflection_dot_view > 0.0 {
-            let specular_scale: f32 =
-                reflection_dot_view / (reflection.magnitude() * view.magnitude());
-            final_color = final_color + *intensity * specular_scale.powf(*specular);
-        }
-    }
-
-    final_color
 }
 
 fn main() {

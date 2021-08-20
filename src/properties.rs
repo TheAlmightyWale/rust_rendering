@@ -109,8 +109,27 @@ impl Mul<Color<f32>> for Color<u8> {
     }
 }
 
+impl Mul<f32> for Color<u8> {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            r: (self.r as f32 * rhs).clamp(0.0, 255.0) as u8,
+            g: (self.g as f32 * rhs).clamp(0.0, 255.0) as u8,
+            b: (self.b as f32 * rhs).clamp(0.0, 255.0) as u8,
+            a: (self.a as f32 * 1.0).clamp(0.0, 255.0) as u8,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum Material {
-    Matte { color: Color<u8> },
-    Specular { color: Color<u8>, specular: f32 },
+    Matte {
+        color: Color<u8>,
+    },
+    Specular {
+        color: Color<u8>,
+        specular: f32,
+        reflectiveness: f32,
+    },
 }
