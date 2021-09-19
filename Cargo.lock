@@ -76,13 +76,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
-name = "bindings"
-version = "0.1.0"
-dependencies = [
- "windows",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -234,12 +227,6 @@ name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
-
-[[package]]
-name = "const-sha1"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb58b6451e8c2a812ad979ed1d83378caa5e927eef2622017a45f251457c2c9d"
 
 [[package]]
 name = "copyless"
@@ -1697,7 +1684,6 @@ name = "software-raytracer-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bindings",
  "bytemuck",
  "cgmath",
  "futures",
@@ -1706,7 +1692,6 @@ dependencies = [
  "serde",
  "serde_json",
  "wgpu",
- "windows",
  "winit",
 ]
 
@@ -2103,33 +2088,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "windows"
-version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f1c7f11b289e450f78d55dd9dc09ae91c6ae8faed980bbf3e3a4c8f166ac259"
-dependencies = [
- "const-sha1",
- "windows_gen",
- "windows_macros",
-]
-
-[[package]]
-name = "windows_gen"
-version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57f5facfb04bc84b5fcd27018266d90ce272e11f8b91745dfdd47282e8e0607e"
-
-[[package]]
-name = "windows_macros"
-version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c32753c378262520a4fa70c2e4389f4649e751faab2a887090567cff192d299"
-dependencies = [
- "syn",
- "windows_gen",
-]
 
 [[package]]
 name = "winit"

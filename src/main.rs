@@ -7,7 +7,6 @@ mod scene;
 mod serialization_defs;
 mod state;
 mod texture;
-mod window_target;
 
 use winit::{
     event::{ElementState, Event, WindowEvent},
@@ -22,9 +21,7 @@ use state::State;
 
 use std::fs;
 
-fn run() -> windows::Result<()> {
-    windows::initialize_sta()?; //Single thread application
-
+fn run() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     window.set_title("software-raytracer");
@@ -98,9 +95,5 @@ fn run() -> windows::Result<()> {
 }
 
 fn main() {
-    let result = run();
-
-    if let Err(error) = result {
-        error.code().unwrap();
-    }
+    run();
 }
