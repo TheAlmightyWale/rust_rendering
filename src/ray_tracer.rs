@@ -2,17 +2,12 @@ use crate::lights::Light;
 use crate::objects::Sphere;
 use crate::properties::Color;
 use crate::properties::Material;
+use crate::properties::BG_COLOR;
 use crate::scene::Scene;
 use crate::state::State;
 use cgmath::InnerSpace; //Dot product and magnitude
 
 static MIN_Z: f32 = 1.0;
-static BG_COLOR: Color<u8> = Color::<u8> {
-    r: 100,
-    g: 100,
-    b: 100,
-    a: 255,
-};
 static REFLECTION_RECURSION_LIMIT: u32 = 3;
 
 pub fn ray_trace(scene: &Scene, state: &mut State) {
@@ -24,8 +19,8 @@ pub fn ray_trace(scene: &Scene, state: &mut State) {
         y: viewport_height,
     };
     let origin = cgmath::Vector3::new(0.0, 0.0, 0.0);
-    for y in 0..state.texture.size.width {
-        for x in 0..state.texture.size.height {
+    for y in 0..state.texture.size.height {
+        for x in 0..state.texture.size.width {
             //Centering x and y gives us a camera view centered at 0,0,0, rather than having the far left of the view starting at 0,0,0
             let centered_x = x as f32 - (viewport_width / 2.0);
             let centered_y = y as f32 - (viewport_height / 2.0);
@@ -75,23 +70,20 @@ fn trace_ray(
                     &(ray_direction * -1.0),
                 );
             if reflection_recursion_depth > 0 {
-                match sphere.material {
-                    Material::Specular { reflectiveness, .. } => {
-                        //Compute reflected colors
-                        let reversed_ray = ray_direction * -1.0;
-                        let reflected_ray = reflect_ray(&normal, &reversed_ray);
-                        let reflected_color = trace_ray(
-                            &intersection,
-                            &reflected_ray,
-                            0.0001,
-                            f32::INFINITY,
-                            scene,
-                            reflection_recursion_depth - 1,
-                        );
-                        local_color =
-                            local_color * (1.0 - reflectiveness) + reflected_color * reflectiveness;
-                    }
-                    _ => {}
+                if let Material::Specular { reflectiveness, .. } = sphere.material {
+                    //Compute reflected colors
+                    let reversed_ray = ray_direction * -1.0;
+                    let reflected_ray = reflect_ray(&normal, &reversed_ray);
+                    let reflected_color = trace_ray(
+                        &intersection,
+                        &reflected_ray,
+                        0.0001,
+                        f32::INFINITY,
+                        scene,
+                        reflection_recursion_depth - 1,
+                    );
+                    local_color =
+                        local_color * (1.0 - reflectiveness) + reflected_color * reflectiveness;
                 }
             }
             local_color
@@ -130,20 +122,19 @@ fn intersect_ray_sphere(
     ray_direction: &cgmath::Vector3<f32>,
     sphere: &Sphere,
 ) -> (f32, f32) {
-    let r = sphere.radius;
+    let radius = sphere.radius;
     let origin_sphere = origin - sphere.center;
     //Quadratic equation
     let a = cgmath::dot(*ray_direction, *ray_direction);
     let b = 2.0 * cgmath::dot(origin_sphere, *ray_direction);
-    let c = cgmath::dot(origin_sphere, origin_sphere) - r * r;
+    let c = cgmath::dot(origin_sphere, origin_sphere) - radius * radius;
     let discriminant = b * b - 4.0 * a * c;
-    match discriminant {
-        d if d < 0.0 => (f32::INFINITY, f32::INFINITY),
-        __ => {
-            let t1 = (-b + discriminant.sqrt()) / (2.0 * a);
-            let t2 = (-b - discriminant.sqrt()) / (2.0 * a);
-            (t1, t2)
-        }
+    if discriminant < 0.0 {
+        (f32::INFINITY, f32::INFINITY)
+    } else {
+        let t1 = (-b + discriminant.sqrt()) / (2.0 * a);
+        let t2 = (-b - discriminant.sqrt()) / (2.0 * a);
+        (t1, t2)
     }
 }
 
@@ -278,6 +269,5 @@ fn reflect_ray(
     surface_normal: &cgmath::Vector3<f32>,
     ray: &cgmath::Vector3<f32>,
 ) -> cgmath::Vector3<f32> {
-    let reflected = 2.0 * surface_normal * cgmath::dot(*surface_normal, *ray) - ray;
-    reflected
+    2.0 * surface_normal * cgmath::dot(*surface_normal, *ray) - ray
 }

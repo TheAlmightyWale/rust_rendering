@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use std::ops::Mul;
 
+pub static BG_COLOR: Color<u8> = Color::<u8> {
+    r: 100,
+    g: 100,
+    b: 100,
+    a: 255,
+};
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[repr(C)]
 pub struct Color<T> {
