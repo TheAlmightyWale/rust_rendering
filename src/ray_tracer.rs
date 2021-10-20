@@ -4,23 +4,23 @@ use crate::properties::Color;
 use crate::properties::Material;
 use crate::properties::BG_COLOR;
 use crate::scene::Scene;
-use crate::state::State;
+use crate::state::Surface;
 use cgmath::InnerSpace; //Dot product and magnitude
 
 static MIN_Z: f32 = 1.0;
 static REFLECTION_RECURSION_LIMIT: u32 = 3;
 
-pub fn ray_trace(scene: &Scene, state: &mut State) {
+pub fn ray_trace(scene: &Scene, surface: &mut dyn Surface) {
     //Get bounds of drawing sruface
-    let viewport_width = state.texture.size.width as f32;
-    let viewport_height = state.texture.size.height as f32;
+    let viewport_width = surface.get_width() as f32;
+    let viewport_height = surface.get_height() as f32;
     let size = cgmath::Vector2::<f32> {
         x: viewport_width,
         y: viewport_height,
     };
     let origin = cgmath::Vector3::new(0.0, 0.0, 0.0);
-    for y in 0..state.texture.size.height {
-        for x in 0..state.texture.size.width {
+    for y in 0..surface.get_height() {
+        for x in 0..surface.get_width() {
             //Centering x and y gives us a camera view centered at 0,0,0, rather than having the far left of the view starting at 0,0,0
             let centered_x = x as f32 - (viewport_width / 2.0);
             let centered_y = y as f32 - (viewport_height / 2.0);
@@ -33,7 +33,7 @@ pub fn ray_trace(scene: &Scene, state: &mut State) {
                 scene,
                 REFLECTION_RECURSION_LIMIT,
             );
-            state.set_pixel(x, y, &color);
+            surface.set_pixel(x, y, &color);
         }
     }
 }

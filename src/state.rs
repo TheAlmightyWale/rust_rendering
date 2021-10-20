@@ -9,6 +9,12 @@ use winit::window::Window;
 
 static COLOR_BYTE_SIZE: usize = 4; //Color is comprised of 4 bytes, rgba all in u8 form
 
+pub trait Surface {
+    fn set_pixel(&mut self, x: u32, y: u32, color: &Color<u8>);
+    fn get_width(&self) -> u32;
+    fn get_height(&self) -> u32;
+}
+
 pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -22,8 +28,58 @@ pub struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
-    pub pixels: Vec<u8>,
+    pub pixel_surface: PixelSurface,
     pub texture: texture::Texture,
+}
+
+pub struct PixelSurface {
+    width: u32,
+    height: u32,
+    pixels: Vec<u8>,
+}
+
+impl PixelSurface {
+    fn new(width: u32, height: u32) -> Self {
+        let pixels = vec![
+            0;
+            (width * height * COLOR_BYTE_SIZE as u32) // 4 color channels
+                .try_into()
+                .unwrap()
+        ];
+
+        Self {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    fn get_pixels(&self) -> &[u8] {
+        &self.pixels
+    }
+}
+
+impl Surface for PixelSurface {
+    fn set_pixel(&mut self, x: u32, y: u32, color: &Color<u8>) {
+        let color_bytes: ColorBytes = color.get_bytes().unwrap();
+        let row_size = self.width * COLOR_BYTE_SIZE as u32;
+        let index: usize = (x * COLOR_BYTE_SIZE as u32 + y * row_size)
+            .try_into()
+            .unwrap();
+        let color_slice = self.pixels.get_mut(index..index + COLOR_BYTE_SIZE);
+        color_slice
+            .unwrap()
+            .copy_from_slice(&bytemuck::bytes_of(&color_bytes)[0..COLOR_BYTE_SIZE]);
+        // turn Color struct into byte array and copy over
+    }
+
+    fn get_width(&self) -> u32 {
+        self.width
+    }
+
+    fn get_height(&self) -> u32 {
+        self.height
+    }
 }
 
 impl State {
@@ -69,12 +125,7 @@ impl State {
             texture::Texture::from_bytes(&device, &queue, diffuse_bytes, Some("happy-tree.png"))
                 .unwrap();
 
-        let pixels = vec![
-            0;
-            (texture.size.width * texture.size.height * COLOR_BYTE_SIZE as u32) // 4 color channels
-                .try_into()
-                .unwrap()
-        ];
+        let pixel_surface = PixelSurface::new(texture.size.width, texture.size.height);
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -211,7 +262,7 @@ impl State {
             index_buffer,
             num_indices,
             diffuse_bind_group,
-            pixels,
+            pixel_surface,
             texture,
         }
     }
@@ -231,20 +282,8 @@ impl State {
 
     pub fn update(&mut self) {
         //Copy pixels to texture
-        self.texture.fill_texture(&self.pixels, &self.queue);
-    }
-
-    pub fn set_pixel(&mut self, x: u32, y: u32, color: &Color<u8>) {
-        let color_bytes: ColorBytes = color.get_bytes().unwrap();
-        let row_size = self.texture.size.width * COLOR_BYTE_SIZE as u32;
-        let index: usize = (x * COLOR_BYTE_SIZE as u32 + y * row_size)
-            .try_into()
-            .unwrap();
-        let color_slice = self.pixels.get_mut(index..index + COLOR_BYTE_SIZE);
-        color_slice
-            .unwrap()
-            .copy_from_slice(&bytemuck::bytes_of(&color_bytes)[0..COLOR_BYTE_SIZE]);
-        // turn Color struct into byte array and copy over
+        self.texture
+            .fill_texture(self.pixel_surface.get_pixels(), &self.queue);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SwapChainError> {

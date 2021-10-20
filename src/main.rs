@@ -22,6 +22,7 @@ use rasterizer::draw_line;
 use ray_tracer::ray_trace;
 use scene::Scene;
 use state::State;
+use state::Surface;
 
 use std::fs;
 
@@ -49,7 +50,7 @@ fn run() {
         match event {
             Event::RedrawRequested(window_id) if window_id == window.id() => {
                 //Render updates state to be drawn, should probably live in state
-                render(RenderType::RayTraced, state.as_mut(), &scene);
+                render(RenderType::Rasterized, &mut state.pixel_surface, &scene);
                 state.update();
                 match state.render() {
                     Ok(_) => {}
@@ -104,9 +105,9 @@ fn run() {
     });
 }
 
-fn render(render_mode: RenderType, state: &mut State, scene: &Scene) {
+fn render(render_mode: RenderType, surface: &mut dyn Surface, scene: &Scene) {
     match render_mode {
-        RenderType::RayTraced => ray_trace(&scene, state),
+        RenderType::RayTraced => ray_trace(&scene, surface),
         RenderType::Rasterized => {
             let p1 = cgmath::Vector2::<f32> { x: 10.0, y: 10.0 };
             let p2 = cgmath::Vector2::<f32> { x: 200.0, y: 100.0 };
@@ -116,8 +117,10 @@ fn render(render_mode: RenderType, state: &mut State, scene: &Scene) {
                 b: 0,
                 a: 255,
             };
-            clear_screen(state);
-            draw_line(p1, p2, color, state);
+            clear_screen(surface);
+            draw_line(p1, p2, color, surface);
+            let p3 = cgmath::Vector2::<f32> { x: 15.0, y: 200.0 };
+            draw_line(p1, p3, color, surface);
         }
     }
 }
